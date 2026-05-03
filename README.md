@@ -36,11 +36,18 @@ Sistem terdiri dari dua komponen utama:
    npm install
    ```
 
-3. Konfigurasi Environment:
-   Buat file `.env` di root folder (lihat `.env.example` jika tersedia atau sesuaikan dengan kebutuhan):
+3. **Setup Database PostgreSQL (untuk Central):**
+   Berbeda dengan SQLite yang otomatis dibuat, PostgreSQL harus dibuat secara manual:
+   - Masuk ke PostgreSQL terminal atau menggunakan alat seperti pgAdmin/DBeaver.
+   - Jalankan perintah: `CREATE DATABASE kasir;`
+   - Pastikan user PostgreSQL Anda memiliki izin akses ke database tersebut.
+
+4. Konfigurasi Environment:
+   Buat file `.env` di root folder:
    ```env
-   DATABASE_URL=postgres://user:password@localhost:5432/kasir
-   JWT_SECRET=your_secret_key
+   # Format: postgres://USER:PASSWORD@HOST:PORT/DATABASE_NAME
+   DATABASE_URL=postgres://postgres:password@localhost:5432/kasir
+   JWT_SECRET=rahasia_super_aman_123
    ```
 
 ## 🚀 Menjalankan Aplikasi
