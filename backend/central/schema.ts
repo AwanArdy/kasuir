@@ -1,6 +1,14 @@
 import { pgTable, varchar, uuid, decimal, timestamp, jsonb, text } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
+export const outlets = pgTable('outlets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 100 }).notNull(),
+  address: text('address'),
+  phone: varchar('phone', { length: 20 }),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 export const categories = pgTable('categories', {
   id: varchar('id', { length: 50 }).primaryKey(),
   outletId: uuid('outlet_id').notNull(),
@@ -42,6 +50,16 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+export const members = pgTable('members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  outletId: uuid('outlet_id').notNull(),
+  name: varchar('name', { length: 100 }).notNull(),
+  email: varchar('email', { length: 100 }),
+  phone: varchar('phone', { length: 20 }),
+  points: decimal('points', { precision: 12, scale: 2 }).default('0'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 export const ingredients = pgTable('ingredients', {
   id: varchar('id', { length: 50 }).primaryKey(),
   outletId: uuid('outlet_id').notNull(),
@@ -74,9 +92,17 @@ export const transactions = pgTable('transactions', {
   id: varchar('id', { length: 50 }).primaryKey(),
   outletId: uuid('outlet_id').notNull(),
   cashierId: uuid('cashier_id'),
-  memberId: uuid('member_id'),
-  totalAmount: decimal('total_amount', { precision: 12, scale: 2 }).notNull(),
+  memberId: uuid('member_id').references(() => members.id),
+  orderType: varchar('order_type', { length: 20 }).default('dine-in'),
+  tableNumber: varchar('table_number', { length: 20 }),
+  deliveryPlatform: varchar('delivery_platform', { length: 50 }),
   paymentMethod: varchar('payment_method', { length: 10 }),
+  subtotal: decimal('subtotal', { precision: 12, scale: 2 }).notNull(),
+  discountAmount: decimal('discount_amount', { precision: 12, scale: 2 }).default('0'),
+  taxAmount: decimal('tax_amount', { precision: 12, scale: 2 }).default('0'),
+  totalAmount: decimal('total_amount', { precision: 12, scale: 2 }).notNull(),
+  receivedAmount: decimal('received_amount', { precision: 12, scale: 2 }),
+  changeAmount: decimal('change_amount', { precision: 12, scale: 2 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -113,7 +139,34 @@ export const stockLogs = pgTable('stock_logs', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export const expenses = pgTable('expenses', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  outletId: uuid('outlet_id').notNull(),
+  userId: uuid('user_id').references(() => users.id),
+  category: varchar('category', { length: 50 }).notNull(),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  note: text('note'),
+  date: timestamp('date').defaultNow().notNull(),
+});
+
+export const suppliers = pgTable('suppliers', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 100 }).notNull(),
+  contactName: varchar('contact_name', { length: 100 }),
+  phone: varchar('phone', { length: 20 }),
+  address: text('address'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 // RELATIONS
+export const outletsRelations = relations(outlets, ({ many }) => ({
+  users: many(users),
+  categories: many(categories),
+  products: many(products),
+  members: many(members),
+  expenses: many(expenses),
+}));
+
 export const categoriesRelations = relations(categories, ({ many }) => ({
   products: many(products),
 }));
@@ -148,3 +201,16 @@ export const recipesRelations = relations(recipes, ({ one }) => ({
     references: [ingredients.id],
   }),
 }));
+
+export const transactionsRelations = relations(transactions, ({ one, many }) => ({
+  member: one(members, {
+    fields: [transactions.memberId],
+    references: [members.id],
+  }),
+  items: many(transactionItems),
+}));
+
+export const membersRelations = relations(members, ({ many }) => ({
+  transactions: many(transactions),
+}));
+

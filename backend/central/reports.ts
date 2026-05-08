@@ -16,6 +16,8 @@ router.get('/sales-summary', authenticate, authorize(['admin', 'manager']), asyn
     const summary = await db.select({
       outletId: transactions.outletId,
       totalSales: sql<number>`sum(${transactions.totalAmount})`,
+      totalDiscount: sql<number>`sum(${transactions.discountAmount})`,
+      totalTax: sql<number>`sum(${transactions.taxAmount})`,
       transactionCount: sql<number>`count(${transactions.id})`,
     })
     .from(transactions)

@@ -27,6 +27,16 @@ export const products = sqliteTable('products', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 });
 
+export const members = sqliteTable('members', {
+  id: text('id').primaryKey(),
+  outletId: text('outlet_id').notNull(),
+  name: text('name').notNull(),
+  email: text('email'),
+  phone: text('phone'),
+  points: real('points').default(0),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+});
+
 export const ingredients = sqliteTable('ingredients', {
   id: text('id').primaryKey(),
   outletId: text('outlet_id').notNull(),
@@ -49,9 +59,17 @@ export const transactions = sqliteTable('transactions', {
   id: text('id').primaryKey(), // TRX-1714654321
   outletId: text('outlet_id').notNull(),
   cashierId: text('cashier_id').notNull(),
-  memberId: text('member_id'),
-  totalAmount: real('total_amount').notNull(),
+  memberId: text('member_id').references(() => members.id),
+  orderType: text('order_type').default('dine-in'),
+  tableNumber: text('table_number'),
+  deliveryPlatform: text('delivery_platform'),
   paymentMethod: text('payment_method').notNull(), // 'CASH' | 'QRIS'
+  subtotal: real('subtotal').notNull(),
+  discountAmount: real('discount_amount').default(0),
+  taxAmount: real('tax_amount').default(0),
+  totalAmount: real('total_amount').notNull(),
+  receivedAmount: real('received_amount'),
+  changeAmount: real('change_amount'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
   isSynced: integer('is_synced', { mode: 'boolean' }).default(false),
@@ -101,9 +119,28 @@ export const auditLogs = sqliteTable('audit_logs', {
   isSynced: integer('is_synced', { mode: 'boolean' }).default(false),
 });
 
+export const expenses = sqliteTable('expenses', {
+  id: text('id').primaryKey(),
+  outletId: text('outlet_id').notNull(),
+  userId: text('user_id').notNull(),
+  category: text('category').notNull(),
+  amount: real('amount').notNull(),
+  note: text('note'),
+  date: integer('date', { mode: 'timestamp' }).notNull(),
+  isSynced: integer('is_synced', { mode: 'boolean' }).default(false),
+});
+
 // --- RELATIONS ---
-export const transactionsRelations = relations(transactions, ({ many }) => ({
+export const transactionsRelations = relations(transactions, ({ one, many }) => ({
+  member: one(members, {
+    fields: [transactions.memberId],
+    references: [members.id],
+  }),
   items: many(transactionItems),
+}));
+
+export const membersRelations = relations(members, ({ many }) => ({
+  transactions: many(transactions),
 }));
 
 export const transactionItemsRelations = relations(transactionItems, ({ one }) => ({
@@ -131,3 +168,4 @@ export const recipesRelations = relations(recipes, ({ one }) => ({
     references: [ingredients.id],
   }),
 }));
+

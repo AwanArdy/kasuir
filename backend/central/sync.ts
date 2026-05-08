@@ -14,13 +14,34 @@ router.get('/pull', authenticate, async (req: AuthRequest, res) => {
     const lastSync = req.query.last_sync ? new Date(req.query.last_sync as string) : new Date(0);
     const outletId = req.user!.outletId;
 
-    const [cats, unts, prods, ings, recs] = await Promise.all([
-      db.query.categories.findMany({ where: and(eq(schema.categories.outletId, outletId), gt(schema.categories.updatedAt, lastSync)) }),
-      db.query.units.findMany({ where: gt(schema.units.updatedAt, lastSync) }),
-      db.query.products.findMany({ where: and(eq(schema.products.outletId, outletId), gt(schema.products.updatedAt, lastSync)) }),
-      db.query.ingredients.findMany({ where: and(eq(schema.ingredients.outletId, outletId), gt(schema.ingredients.updatedAt, lastSync)) }),
-      db.query.recipes.findMany({ where: gt(schema.recipes.updatedAt, lastSync) }),
-    ]);
+    console.log(`[PULL] Request - Outlet: ${outletId}, LastSync: ${lastSync.toISOString()}`);
+
+    // Query each table explicitly for better error isolation and logging
+    const cats = await db.select().from(schema.categories)
+      .where(and(eq(schema.categories.outletId, outletId), gt(schema.categories.updatedAt, lastSync)));
+    console.log(`[PULL] Categories found: ${cats.length}`);
+
+    const unts = await db.select().from(schema.units)
+      .where(gt(schema.units.updatedAt, lastSync));
+    console.log(`[PULL] Units found: ${unts.length}`);
+
+    const prods = await db.select().from(schema.products)
+      .where(and(eq(schema.products.outletId, outletId), gt(schema.products.updatedAt, lastSync)));
+    console.log(`[PULL] Products found: ${prods.length}`);
+
+    const ings = await db.select().from(schema.ingredients)
+      .where(and(eq(schema.ingredients.outletId, outletId), gt(schema.ingredients.updatedAt, lastSync)));
+    console.log(`[PULL] Ingredients found: ${ings.length}`);
+
+    const recs = await db.select().from(schema.recipes)
+      .where(gt(schema.recipes.updatedAt, lastSync));
+    console.log(`[PULL] Recipes found: ${recs.length}`);
+
+    // Temporary skip for missing tables
+    /*
+    const mems = await db.select().from(schema.members)
+      .where(and(eq(schema.members.outletId, outletId), gt(schema.members.updatedAt, lastSync)));
+    */
 
     res.json(toCamel({
       categories: cats,
@@ -28,11 +49,13 @@ router.get('/pull', authenticate, async (req: AuthRequest, res) => {
       products: prods,
       ingredients: ings,
       recipes: recs,
+      members: [],
+      suppliers: [],
       serverTime: new Date().toISOString(),
     }));
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Pull failed' });
+  } catch (error: any) {
+    console.error('[PULL] Error:', error);
+    res.status(500).json({ message: 'Pull failed', error: error.message });
   }
 });
 
@@ -41,11 +64,12 @@ const pushSchema = z.object({
   transactions: z.array(z.any()),
   shifts: z.array(z.any()),
   stockLogs: z.array(z.any()),
+  expenses: z.array(z.any()).optional(),
 });
 
 router.post('/push', authenticate, async (req: AuthRequest, res) => {
   try {
-    const { transactions, shifts, stockLogs } = pushSchema.parse(req.body);
+    const { transactions, shifts, stockLogs, expenses: incomingExpenses } = pushSchema.parse(req.body);
     const outletId = req.user!.outletId;
 
     await db.transaction(async (tx) => {
@@ -62,7 +86,7 @@ router.post('/push', authenticate, async (req: AuthRequest, res) => {
           .values({ ...cleanTrx, outletId })
           .onConflictDoUpdate({
             target: schema.transactions.id,
-            set: { updatedAt: new Date() }
+            set: { ...cleanTrx, outletId, updatedAt: new Date() }
           });
       }
 
@@ -76,7 +100,7 @@ router.post('/push', authenticate, async (req: AuthRequest, res) => {
           .values({ ...cleanShift, outletId })
           .onConflictDoUpdate({
             target: schema.shifts.id,
-            set: { updatedAt: new Date() }
+            set: { ...cleanShift, outletId, updatedAt: new Date() }
           });
       }
 
@@ -88,6 +112,21 @@ router.post('/push', authenticate, async (req: AuthRequest, res) => {
         await tx.insert(schema.stockLogs)
           .values({ ...cleanLog, outletId })
           .onConflictDoNothing(); // Stock logs are usually append-only
+      }
+
+      // Ingest Expenses
+      if (incomingExpenses) {
+        for (const exp of incomingExpenses) {
+          const { isSynced, ...cleanExp } = exp;
+          if (cleanExp.date) cleanExp.date = new Date(cleanExp.date);
+
+          await tx.insert(schema.expenses)
+            .values({ ...cleanExp, outletId })
+            .onConflictDoUpdate({
+              target: schema.expenses.id,
+              set: { ...cleanExp, outletId }
+            });
+        }
       }
     });
 

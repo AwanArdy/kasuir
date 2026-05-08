@@ -1,5 +1,5 @@
 import { db } from './db.js';
-import { users, roles, categories, units, products, ingredients } from './schema.js';
+import { users, roles, categories, units, products, ingredients, outlets, members, suppliers } from './schema.js';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import util from 'util';
@@ -11,10 +11,17 @@ async function seed() {
     const demoOutletId = 'd0000000-0000-0000-0000-000000000001';
     const password = await bcrypt.hash('password123', 10);
 
+    // 0. Seed Outlets
+    console.log('Inserting outlets...');
+    await db.insert(outlets).values([
+      { id: demoOutletId, name: 'Main Outlet', address: 'Jl. Sudirman No. 1', phone: '021-123456' },
+      { id: uuidv4(), name: 'Secondary Outlet', address: 'Jl. Gatot Subroto No. 2', phone: '021-654321' },
+    ]).onConflictDoNothing({ target: outlets.id });
+
     // 1. Seed Roles
     console.log('Inserting roles...');
     await db.insert(roles).values([
-      { id: 'superadmin', permissions: { all: true } },
+      { id: 'admin', permissions: { all: true } },
       { id: 'manager', permissions: { report: true, inventory: true, products: true } },
       { id: 'cashier', permissions: { transactions: true, shifts: true } },
     ]).onConflictDoNothing({ target: roles.id });
@@ -27,7 +34,7 @@ async function seed() {
         name: 'Internal Developer',
         email: 'dev@teratur.id',
         password: password,
-        roleId: 'superadmin',
+        roleId: 'admin',
         outletId: demoOutletId,
       },
       {
@@ -105,9 +112,23 @@ async function seed() {
       },
     ]).onConflictDoNothing({ target: products.id });
 
+    // 6. Seed Members
+    console.log('Inserting members...');
+    await db.insert(members).values([
+      { id: uuidv4(), outletId: demoOutletId, name: 'John Doe', email: 'john@example.com', phone: '08123456789', points: '100' },
+      { id: uuidv4(), outletId: demoOutletId, name: 'Jane Smith', email: 'jane@example.com', phone: '08987654321', points: '50' },
+    ]);
+
+    // 7. Seed Suppliers
+    console.log('Inserting suppliers...');
+    await db.insert(suppliers).values([
+      { id: uuidv4(), name: 'IndoCoffee Supplier', contactName: 'Budi', phone: '021-999888', address: 'Jakarta' },
+      { id: uuidv4(), name: 'Fresh Bakery Hub', contactName: 'Siti', phone: '021-777666', address: 'Bandung' },
+    ]);
+
     console.log('✅ Seeding complete!');
     console.log('Demo Credentials (Password: password123):');
-    console.log('- dev@teratur.id (Superadmin)');
+    console.log('- dev@teratur.id (Admin)');
     console.log('- demo-owner@teratur.id (Manager)');
     console.log('- demo-cashier@teratur.id (Cashier)');
     process.exit(0);

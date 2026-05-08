@@ -22,9 +22,16 @@ router.get('/categories', authenticate, async (req: AuthRequest, res) => {
 });
 
 router.post('/categories', authenticate, authorize(['admin', 'manager']), async (req: AuthRequest, res) => {
-  const data = categorySchema.parse(req.body);
-  await db.insert(categories).values({ ...data, outletId: req.user!.outletId });
-  res.status(201).json({ message: 'Category created' });
+  try {
+    const data = categorySchema.parse(req.body);
+    await db.insert(categories)
+      .values({ ...data, outletId: req.user!.outletId })
+      .onConflictDoNothing();
+    res.status(201).json({ message: 'Category processed' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
 });
 
 // --- UNITS ---
